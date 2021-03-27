@@ -7,6 +7,7 @@ namespace EnsuiNES
         [STAThread]
         static void Main()
         {
+            Console.Write("Sup");
             using (var game = new Game1())
                 game.Run();
         }
