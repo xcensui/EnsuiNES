@@ -1,16 +1,19 @@
 ﻿using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using EnsuiNES.Console;
 
 namespace EnsuiNES
 {
     public class Game1 : Game
     {
+        private NES emulator;
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
 
         public Game1()
         {
+            emulator = new NES();
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
@@ -37,6 +40,7 @@ namespace EnsuiNES
 
             // TODO: Add your update logic here
 
+            emulator.cpu.clock();
             base.Update(gameTime);
         }
 
