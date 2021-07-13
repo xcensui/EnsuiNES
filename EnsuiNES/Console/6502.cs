@@ -8,8 +8,8 @@ namespace EnsuiNES.Console
 {
     class _6502
     {
-        private NES bus;         
-        private List<Constants.instruction> lookup;       
+        private NES bus;
+        private List<Constants.instruction> lookup;
 
         public byte accumulator;
         public byte xRegister;
@@ -24,10 +24,46 @@ namespace EnsuiNES.Console
         private ushort addressAbs;
         private ushort addressRel;
 
+        private bool boundaryBug;
+
+        private List<byte> nopCycles;
+
         public _6502()
         {
-            this.reset();
             this.setLookup();
+
+            nopCycles = new List<byte>();
+            nopCycles.Add(0x1C);
+            nopCycles.Add(0x3C);
+            nopCycles.Add(0x5C);
+            nopCycles.Add(0x7C);
+            nopCycles.Add(0xDC);
+            nopCycles.Add(0xFC);
+        }
+
+        public ushort pCounter
+        {
+            get => programCounter;
+        }
+
+        public byte acc
+        {
+            get => accumulator;
+        }
+
+        public byte xReg
+        {
+            get => xRegister;
+        }
+
+        public byte yReg
+        {
+            get => yRegister;
+        }
+
+        public byte stack
+        {
+            get => stackPointer;
         }
 
         private void setLookup()
@@ -38,7 +74,7 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "ORA", cycles = 6, operation = ORA, addressMode = IZX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 3, operation = NOP, addressMode = IMP });            
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 3, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ORA", cycles = 3, operation = ORA, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "ASL", cycles = 5, operation = ASL, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "???", cycles = 5, operation = XXX, addressMode = IMP });
@@ -46,7 +82,7 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "ORA", cycles = 2, operation = ORA, addressMode = IMM });
             lookup.Add(new Constants.instruction { name = "ASL", cycles = 2, operation = ASL, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ORA", cycles = 4, operation = ORA, addressMode = ABS });
             lookup.Add(new Constants.instruction { name = "ASL", cycles = 6, operation = ASL, addressMode = ABS });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
@@ -55,15 +91,15 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "ORA", cycles = 5, operation = ORA, addressMode = IZY });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ORA", cycles = 4, operation = ORA, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "ASL", cycles = 6, operation = ASL, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CLC", cycles = 2, operation = CLC, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ORA", cycles = 4, operation = ORA, addressMode = ABY });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ORA", cycles = 4, operation = ORA, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "ASL", cycles = 7, operation = ASL, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
@@ -89,15 +125,15 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "AND", cycles = 5, operation = AND, addressMode = IZY });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "AND", cycles = 4, operation = AND, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "ROL", cycles = 6, operation = ROL, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "SEC", cycles = 2, operation = SEC, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "AND", cycles = 4, operation = AND, addressMode = ABY });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "AND", cycles = 4, operation = AND, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "ROL", cycles = 7, operation = ROL, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
@@ -106,7 +142,7 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "EOR", cycles = 6, operation = EOR, addressMode = IZX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 3, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 3, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "EOR", cycles = 3, operation = EOR, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "LSR", cycles = 5, operation = LSR, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "???", cycles = 5, operation = XXX, addressMode = IMP });
@@ -123,15 +159,15 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "EOR", cycles = 5, operation = EOR, addressMode = IZY });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "EOR", cycles = 4, operation = EOR, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "LSR", cycles = 6, operation = LSR, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CLI", cycles = 2, operation = CLI, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "EOR", cycles = 4, operation = EOR, addressMode = ABY });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "EOR", cycles = 4, operation = EOR, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "LSR", cycles = 7, operation = LSR, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
@@ -140,7 +176,7 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "ADC", cycles = 5, operation = ADC, addressMode = IZX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 3, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 3, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ADC", cycles = 3, operation = ADC, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "ROR", cycles = 5, operation = ROR, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "???", cycles = 5, operation = XXX, addressMode = IMP });
@@ -157,29 +193,29 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "ADC", cycles = 5, operation = ADC, addressMode = IZY });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ADC", cycles = 4, operation = ADC, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "ROR", cycles = 6, operation = ROR, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "SEI", cycles = 7, operation = SEI, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ADC", cycles = 7, operation = ADC, addressMode = ABY });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "ADC", cycles = 4, operation = ADC, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "ROR", cycles = 7, operation = ROR, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
 
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "STA", cycles = 6, operation = STA, addressMode = IZX });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "STY", cycles = 3, operation = STY, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "STA", cycles = 3, operation = STA, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "STX", cycles = 3, operation = STX, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "???", cycles = 3, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "DEY", cycles = 2, operation = DEY, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "TXA", cycles = 2, operation = TXA, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "STY", cycles = 4, operation = STY, addressMode = ABS });
@@ -189,7 +225,7 @@ namespace EnsuiNES.Console
 
             lookup.Add(new Constants.instruction { name = "BCC", cycles = 2, operation = BCC, addressMode = REL });
             lookup.Add(new Constants.instruction { name = "STA", cycles = 6, operation = XXX, addressMode = IZY });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "STY", cycles = 4, operation = STY, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "STA", cycles = 4, operation = STA, addressMode = ZPX });
@@ -199,7 +235,7 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "STA", cycles = 5, operation = STA, addressMode = ABY });
             lookup.Add(new Constants.instruction { name = "TXS", cycles = 2, operation = TXS, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 5, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 5, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 5, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "STA", cycles = 5, operation = STA, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 5, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 5, operation = XXX, addressMode = IMP });
@@ -220,7 +256,7 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "LDA", cycles = 4, operation = LDA, addressMode = ABS });
             lookup.Add(new Constants.instruction { name = "LDX", cycles = 4, operation = LDX, addressMode = ABS });
             lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = XXX, addressMode = IMP });
-            
+
 
             lookup.Add(new Constants.instruction { name = "BCS", cycles = 2, operation = BCS, addressMode = REL });
             lookup.Add(new Constants.instruction { name = "LDA", cycles = 5, operation = LDA, addressMode = IZY });
@@ -241,7 +277,7 @@ namespace EnsuiNES.Console
 
             lookup.Add(new Constants.instruction { name = "CPY", cycles = 2, operation = CPY, addressMode = IMM });
             lookup.Add(new Constants.instruction { name = "CMP", cycles = 6, operation = CMP, addressMode = IZX });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CPY", cycles = 3, operation = CPY, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "CMP", cycles = 3, operation = CMP, addressMode = ZP0 });
@@ -260,22 +296,22 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "CMP", cycles = 5, operation = CMP, addressMode = IZY });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CMP", cycles = 4, operation = CMP, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "DEC", cycles = 6, operation = DEC, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CLD", cycles = 2, operation = CLD, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CMP", cycles = 4, operation = CMP, addressMode = ABY });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CMP", cycles = 4, operation = CMP, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "DEC", cycles = 7, operation = DEC, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
 
             lookup.Add(new Constants.instruction { name = "CPX", cycles = 2, operation = CPX, addressMode = IMM });
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 6, operation = SBC, addressMode = IZX });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CPX", cycles = 3, operation = CPX, addressMode = ZP0 });
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 3, operation = SBC, addressMode = ZP0 });
@@ -283,7 +319,7 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "???", cycles = 5, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "INX", cycles = 2, operation = INX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 2, operation = SBC, addressMode = IMM });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "CPX", cycles = 4, operation = CPX, addressMode = ABS });
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 4, operation = SBC, addressMode = ABS });
@@ -294,15 +330,15 @@ namespace EnsuiNES.Console
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 5, operation = SBC, addressMode = IZY });
             lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 8, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 4, operation = SBC, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "INC", cycles = 6, operation = INC, addressMode = ZPX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 6, operation = XXX, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "SED", cycles = 2, operation = SED, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 4, operation = SBC, addressMode = ABY });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 2, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 2, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
-            lookup.Add(new Constants.instruction { name = "???", cycles = 4, operation = NOP, addressMode = IMP });
+            lookup.Add(new Constants.instruction { name = "NOP", cycles = 4, operation = NOP, addressMode = IMP });
             lookup.Add(new Constants.instruction { name = "SBC", cycles = 4, operation = SBC, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "INC", cycles = 7, operation = INC, addressMode = ABX });
             lookup.Add(new Constants.instruction { name = "???", cycles = 7, operation = XXX, addressMode = IMP });
@@ -311,6 +347,12 @@ namespace EnsuiNES.Console
         public void Connect(NES console)
         {
             bus = console;
+            reset();
+        }
+
+        public bool complete()
+        {
+            return cycles == 0;
         }
 
         public void reset()
@@ -318,31 +360,48 @@ namespace EnsuiNES.Console
             accumulator = 0x00;
             xRegister = 0x00;
             yRegister = 0x00;
-            stackPointer = 0x00;
-            programCounter = 0x0000;
-            statusRegister = 0x00;
+            stackPointer = 0xFD;
+            programCounter = getSetProgramCounter(0xFFFC);
+            statusRegister = (byte)(0x00 | Constants.flags.U);
 
-            cycles = 0;
+            cycles = 8;
             opcode = 0x00;
             fetchedData = 0x00;
             addressAbs = 0x0000;
             addressRel = 0x0000;
-    }
+
+            while (!complete())
+            {
+                clock();
+            }
+        }
 
         private void write(ushort address, byte data)
         {
-            bus.write(address, data);
+            bus.cpuWrite(address, data);
         }
 
         private byte read(ushort address)
         {
-            return 0x00;
-            return bus.read(address);
+            return bus.cpuRead(address, false);
+        }
+
+        private ushort readPage()
+        {
+            boundaryBug = false;
+
+            byte lo = read(programCounter);
+            programCounter++;
+            byte hi = read(programCounter);
+            programCounter++;
+
+            if (lo == 0x00FF) boundaryBug = true;
+
+            return (ushort)((hi << 8) | lo);
         }
 
         public void clock()
         {
-            Debug.WriteLine("Clock");
             if (cycles == 0)
             {
                 opcode = read(programCounter);
@@ -352,103 +411,1075 @@ namespace EnsuiNES.Console
                 byte additionalOperationCycle = lookup[opcode].operation();
 
                 cycles += (byte)(additionalAddressCycle & additionalOperationCycle);
-            }
+             }
 
             cycles--;
         }
 
         public void IRQ()
         {
+            if (getFlag(Constants.flags.I) == 0)
+            {
+                performInterrupt();
+                programCounter = getSetProgramCounter(0xFFFE);
 
+                cycles = 7;
+            }
         }
         public void NMI()
         {
-            
+            performInterrupt();
+            programCounter = getSetProgramCounter(0xFFFA);
+
+            cycles = 8;
         }
 
         public byte fetchData()
         {
+            if (lookup[opcode].addressMode != IMP)
+            {
+                fetchedData = read(addressAbs);
+            }
 
+            return fetchedData;
         }
 
         public void setFlag(Constants.flags flag, bool value)
         {
-
+            if (value)
+            {
+                statusRegister |= (byte)flag;
+            }
+            else
+            {
+                statusRegister &= (byte)~flag;
+            }
         }
 
         public byte getFlag(Constants.flags flag)
         {
-            return 0x00;
+            return ((byte)((byte)(statusRegister & (byte)flag) > 0 ? 1 : 0));
         }
 
         //Addressing Modes
         private byte IMM()
         {
-            Debug.WriteLine("IMM");
-            return 0x00;
+            addressAbs = programCounter++;
+
+            return 0;
         }
 
         private byte IMP()
         {
-
+            fetchedData = accumulator;
+            return 0;
         }
 
         private byte ZP0()
         {
+            addressAbs = read(programCounter);
+            programCounter++;
+            addressAbs &= 0x00FF;
 
+            return 0;
         }
         private byte ZPX()
         {
+            addressAbs = (ushort)(read(programCounter) + xRegister);
+            programCounter++;
+            addressAbs &= 0x00FF;
 
+            return 0;
         }
 
         private byte ZPY()
         {
+            addressAbs = (ushort)(read(programCounter) + yRegister);
+            programCounter++;
+            addressAbs &= 0x00FF;
 
+            return 0;
         }
         private byte REL()
         {
+            addressRel = read(programCounter);
+            programCounter++;
 
+            if ((addressRel & 0x80) > 0)
+            {
+                addressRel |= 0xFF00;
+            }
+
+            return 0;
         }
+
         private byte ABS()
         {
-
+            addressAbs = readPage();
+            return 0;
         }
 
         private byte ABX()
         {
+            byte lo = read(programCounter);
+            programCounter++;
+            byte hi = read(programCounter);
+            programCounter++;
 
+            addressAbs = (ushort)((hi << 8) | lo);
+            addressAbs += xRegister;
+
+            if ((addressAbs & 0xFF00) != (hi << 8))
+            {
+                return 1;
+            }
+
+            return 0;
         }
+
         private byte ABY()
         {
+            byte lo = read(programCounter);
+            programCounter++;
+            byte hi = read(programCounter);
+            programCounter++;
 
+            addressAbs = (ushort)((hi << 8) | lo);
+            addressAbs += yRegister;
+
+            if ((addressAbs & 0xFF00) != (hi << 8))
+            {
+                return 1;
+            }
+
+            return 0;
         }
 
         private byte IND()
         {
+            ushort pointer = readPage();
 
+            if (boundaryBug)
+            {
+                addressAbs = (ushort)((read((ushort)(pointer & 0xFF00)) << 8) | read((ushort)(pointer + 0)));
+            }
+            else
+            {
+                addressAbs = (ushort)((read((ushort)(pointer + 1)) << 8) | read((ushort)(pointer + 0)));
+            }
+
+            return 0;
         }
 
         private byte IZX()
         {
+            byte offset = read(programCounter);
+            programCounter++;
 
+            ushort lo = (ushort)(read((byte)(offset + xRegister)) & 0x00FF);
+            ushort hi = (ushort)(read((byte)(offset + xRegister + 1)) & 0x00FF);
+
+            addressAbs = (ushort)((hi << 8) | lo);
+
+            return 0;
         }
+
         private byte IZY()
         {
+            byte offset = read(programCounter);
+            programCounter++;
 
+            ushort lo = read((byte)(offset & 0x00FF));
+            ushort hi = read((byte)((offset + 1) & 0x00FF));
+
+            addressAbs = (ushort)(((hi << 8) | lo) + yRegister);
+
+            if ((addressAbs & 0xFF00) != (hi << 8))
+            {
+                return 1;
+            }
+
+            return 0;
         }
 
         //Opcodes
 
+        private byte AND()
+        {
+            fetchData();
+            accumulator = (byte)(accumulator & fetchedData);
+
+            setFlag(Constants.flags.Z, accumulator == 0x00);
+            setFlag(Constants.flags.N, (accumulator & 0x80) > 0);
+
+            return 1;
+        }
+
+        private byte BCS()
+        {
+            if (getFlag(Constants.flags.C) == 1)
+            {
+                branch();
+            }
+
+            return 0;
+        }
+
+        private byte BCC()
+        {
+            if (getFlag(Constants.flags.C) == 0)
+            {
+                branch();
+            }
+
+            return 0;
+        }
+
+        private byte BEQ()
+        {
+            if (getFlag(Constants.flags.Z) == 1)
+            {
+                branch();
+            }
+
+            return 0;
+        }
+
+        private byte BNE()
+        {
+            if (getFlag(Constants.flags.Z) == 0)
+            {
+                branch();
+            }
+
+            return 0;
+        }
+
+        private byte BMI()
+        {
+            if (getFlag(Constants.flags.N) == 1)
+            {
+                branch();
+            }
+
+            return 0;
+        }
+
+        private byte BPL()
+        {
+            if (getFlag(Constants.flags.N) == 0)
+            {
+                branch();
+            }
+
+            return 0;
+        }
+
+        private byte BVS()
+        {
+            if (getFlag(Constants.flags.V) == 1)
+            {
+                branch();
+            }
+
+            return 0;
+        }
+
+        private byte BVC()
+        {
+            if (getFlag(Constants.flags.V) == 0)
+            {
+                branch();
+            }
+
+            return 0;
+        }
+
+        private byte BRA()
+        {
+            branch();
+
+            return 0;
+        }
+
+        private byte CLC()
+        {
+            setFlag(Constants.flags.C, false);
+
+            return 0;
+        }
+
+        private byte CLD()
+        {
+            setFlag(Constants.flags.D, false);
+
+            return 0;
+        }
+
+        private byte CLI()
+        {
+            setFlag(Constants.flags.I, false);
+
+            return 0;
+        }
+
+        private byte CLV()
+        {
+            setFlag(Constants.flags.V, false);
+
+            return 0;
+        }
+
+        private byte SEC()
+        {
+            setFlag(Constants.flags.C, true);
+
+            return 0;
+        }
+
+        private byte SED()
+        {
+            setFlag(Constants.flags.D, true);
+
+            return 0;
+        }
+
+        private byte SEI()
+        {
+            setFlag(Constants.flags.I, true);
+
+            return 0;
+        }
+
+        private byte PHA()
+        {
+            write((ushort)(0x0100 + stackPointer), accumulator);
+            stackPointer--;
+
+            return 0;
+        }
+
+        private byte PHP()
+        {
+            write((ushort)(0x0100 + stackPointer), (byte)(statusRegister | (byte)Constants.flags.B | (byte)Constants.flags.U));
+
+            setFlag(Constants.flags.B, false);
+            setFlag(Constants.flags.U, false);
+
+            stackPointer--;            
+
+            return 0;
+        }
+
+        private byte PHX()
+        {
+            write((ushort)(0x0100 + stackPointer), xRegister);
+            stackPointer--;
+
+            return 0;
+        }
+
+        private byte PHY()
+        {
+            write((ushort)(0x0100 + stackPointer), yRegister);
+            stackPointer--;
+
+            return 0;
+        }
+
+        private byte PLA()
+        {
+            stackPointer++;
+            accumulator = read((ushort)(0x0100 + stackPointer));
+
+            setFlag(Constants.flags.Z, accumulator == 0x00);
+            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            
+            return 0;
+        }
+
+        private byte PLX()
+        {
+            stackPointer++;
+            accumulator = read((ushort)(0x0100 + xRegister));
+
+            setFlag(Constants.flags.Z, xRegister== 0x00);
+            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+
+            return 0;
+        }
+
+        private byte PLY()
+        {
+            stackPointer++;
+            accumulator = read((ushort)(0x0100 + yRegister));
+
+            setFlag(Constants.flags.Z, yRegister == 0x00);
+            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+
+            return 0;
+        }
+
+        private byte ADC() {
+            fetchData();
+
+            ushort result = (ushort)(accumulator + fetchedData + getFlag(Constants.flags.C));
+
+            ushort overflow = (ushort)(~(ushort)(accumulator ^ (ushort)fetchedData) & ((ushort)accumulator ^ (ushort)result) & 0x0080);
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.C, (result > 255));
+            setFlag(Constants.flags.V, overflow == 1);
+
+            accumulator = (byte)(result & 0x00FF);
+
+            return 1;
+        }
+
+        private byte SBC()
+        {
+            fetchData();
+
+            ushort value = (ushort)(fetchedData ^ 0x00FF);
+            ushort result = (ushort)(accumulator + value + getFlag(Constants.flags.C));
+
+            ushort overflow = (ushort)((ushort)(result ^ accumulator) & (result ^ value) & 0x0080);
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.C, (result > 255));
+            setFlag(Constants.flags.V, overflow == 1);
+
+            accumulator = (byte)(result & 0x00FF);
+
+            return 1;
+        }
+
+        private byte ORA()
+        {
+            fetchData();
+            accumulator = (byte)(accumulator | fetchedData);
+
+            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.Z, accumulator == 0);
+
+            return 1;
+        }
+
+        private byte RTI()
+        {
+            statusRegister = fetchStack();
+
+            programCounter = fetchStack();
+            programCounter |= (ushort)(fetchStack() << 8);
+
+            return 0;
+        }
+
+        private byte INC()
+        {
+            fetchData();
+            byte result = fetchedData++;
+
+            write(addressAbs, result);
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+
+            return 0;
+        }
+
+        private byte DEC()
+        {
+            fetchData();
+            byte result = fetchedData--;
+
+            write(addressAbs, result);
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+
+            return 0;
+        }
+
+        private byte INY()
+        {
+            yRegister++;
+
+            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, (yRegister & 0xFF) == 0);
+
+            return 0;
+        }
+
+        private byte INX()
+        {
+            xRegister++;
+
+            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, (xRegister & 0xFF) == 0);
+
+            return 0;
+        }
+
+        private byte DEY()
+        {
+            yRegister--;
+
+            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, (yRegister & 0xFF) == 0);
+
+            return 0;
+        }
+
+        private byte DEX()
+        {
+            xRegister--;
+
+            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, (xRegister & 0xFF) == 0);
+
+            return 0;
+        }
+
+        private byte LSR()
+        {
+            fetchData();
+            ushort result = (ushort)(fetchedData >> 1);
+
+            setFlag(Constants.flags.C, (fetchedData & 0x0001) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+
+            if (lookup[opcode].addressMode == IMP)
+            {
+                accumulator = (byte)(result & 0x00FF);
+            }
+
+            write(addressAbs, (byte)(result & 0x00FF));
+
+            return 0;
+        }
+
+        private byte ROL()
+        {
+            fetchData();
+
+            ushort result = (ushort)((fetchedData << 1) | (byte)(Constants.flags.C));
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.C, (result & 0xFF00) > 0);
+
+            if (lookup[opcode].addressMode == IMP)
+            {
+                accumulator = (byte)(result & 0x00FF);
+            }
+
+            write(addressAbs, (byte)(result & 0x00FF));
+
+            return 0;
+        }
+
+        private byte EOR()
+        {
+            fetchData();
+
+            accumulator = (byte)(accumulator ^ fetchedData);
+
+            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.Z, accumulator == 0);
+
+            return 1;
+        }
+
+        private byte ROR()
+        {
+            fetchData();
+
+            ushort result = (ushort)((byte)((byte)(Constants.flags.C) << 7) | (fetchedData >> 1));
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.C, (result & 0xFF00) > 0);
+
+            if (lookup[opcode].addressMode == IMP)
+            {
+                accumulator = (byte)(result & 0x00FF);
+            }
+
+            write(addressAbs, (byte)(result & 0x00FF));
+
+            return 0;
+        }
+
+        private byte ASL()
+        {
+            fetchData();
+
+            ushort result = (ushort)(fetchedData << 1);
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.C, (result & 0xFF00) > 0);
+
+            if (lookup[opcode].addressMode == IMP)
+            {
+                accumulator = (byte)(result & 0x00FF);
+            }
+
+            write(addressAbs, (byte)(result & 0x00FF));
+
+            return 0;
+        }
+
+        private byte BIT()
+        {
+            fetchData();
+
+            byte result = (byte)(accumulator & fetchedData);
+
+            setFlag(Constants.flags.N, (fetchedData & (1 << 7)) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.V, (fetchedData & (1 << 6)) == 1);
+
+            return 0;
+        }
+
+        private byte PLP()
+        {
+            statusRegister = fetchStack();
+
+            setFlag(Constants.flags.U, true);
+
+            return 0;
+        }
+
+        private byte JMP()
+        {
+            programCounter = addressAbs;
+
+            return 0;
+        }
+
+        private byte JSR()
+        {
+            programCounter--;
+
+            pushProgramCounter();
+
+            programCounter = addressAbs;
+
+            return 0;
+        }
+
         private byte BRK()
         {
-            Debug.WriteLine("BRK");
-            return 0x00;
+            programCounter++;
+
+            setFlag(Constants.flags.I, true);
+
+            pushProgramCounter();
+
+            setFlag(Constants.flags.B, true);
+            
+            write((ushort)(0x0100 + stackPointer), statusRegister);
+            stackPointer--;
+
+            setFlag(Constants.flags.B, false);
+
+            programCounter = getSetProgramCounter(0xFFFE);
+
+            return 0;
+        }
+
+        private byte RTS()
+        {
+            ushort lo = fetchStack();
+            ushort hi = fetchStack();
+
+            programCounter = (ushort)((hi << 8) | lo);
+            programCounter++;
+
+            return 0;
+        }
+
+        private byte STA()
+        {
+            write(addressAbs, accumulator);
+
+            return 0;
+        }
+
+        private byte STY()
+        {
+            write(addressAbs, yRegister);
+
+            return 0;
+        }
+
+        private byte STX()
+        {
+            write(addressAbs, xRegister);
+
+            return 0;
+        }
+
+        private byte LDA()
+        {
+            fetchData();
+            accumulator = fetchedData;
+
+            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.Z, accumulator == 0);
+
+            return 1;
+        }
+
+        private byte LDX()
+        {
+            fetchData();
+            xRegister = fetchedData;
+
+            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, xRegister == 0);
+
+            return 1;
+        }
+
+        private byte LDY()
+        {
+            fetchData();
+            yRegister = fetchedData;
+
+            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, yRegister == 0);
+
+            return 1;
+        }
+
+        private byte TAX()
+        {
+            xRegister = accumulator;
+
+            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, xRegister == 0);
+
+            return 0;
+        }
+
+        private byte TAY()
+        {
+            yRegister = accumulator;
+
+            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, yRegister == 0);
+
+            return 0;
+        }
+
+        private byte TSX()
+        {
+            xRegister = stackPointer;
+
+            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.Z, xRegister == 0);
+
+            return 0;
+        }
+
+        private byte TXA()
+        {
+            accumulator = xRegister;
+
+            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.Z, accumulator == 0);
+
+            return 0;
+        }
+
+        private byte TXS()
+        {
+            stackPointer = xRegister;
+
+            return 0;
+        }
+
+        private byte TYA()
+        {
+            accumulator = yRegister;
+
+            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.Z, accumulator == 0);
+
+            return 0;
+        }
+
+        private byte CMP()
+        {
+            fetchData();
+
+            ushort result = (ushort)(accumulator - fetchedData);
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.C, (accumulator >= fetchedData));
+
+            return 1;
+        }
+
+        private byte CPX()
+        {
+            fetchData();
+
+            ushort result = (ushort)(xRegister - fetchedData);
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.C, (xRegister >= fetchedData));
+
+            return 1;
+        }
+
+        private byte CPY()
+        {
+            fetchData();
+
+            ushort result = (ushort)(yRegister - fetchedData);
+
+            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
+            setFlag(Constants.flags.C, (yRegister >= fetchedData));
+
+            return 1;
         }
 
         private byte XXX()
         {
-            return 0x00;
+            return 0;
+        }
+
+        private byte NOP()
+        {
+            if (nopCycles.Contains(opcode))
+            {
+                return 1;
+            }
+
+            return 0;
+        }
+
+        private void pushProgramCounter()
+        {
+            write((ushort)(0x0100 + stackPointer), (byte)((ushort)(programCounter >> 8) & 0x00FF));
+            stackPointer--;
+            write((ushort)(0x0100 + stackPointer), (byte)((ushort)(programCounter & 0x00FF)));
+            stackPointer--;
+        }
+
+        private void branch()
+        {
+            cycles++;
+            addressAbs = (ushort)(programCounter + addressRel);
+
+            if ((addressAbs & 0xFF00) != (programCounter & 0xFF00))
+            {
+                cycles++;
+            }
+
+            programCounter = addressAbs;
+        }
+
+        private byte fetchStack()
+        {
+            stackPointer++;
+            return read((byte)(0x0100 & stackPointer));
+        }
+
+        private ushort getSetProgramCounter(ushort address)
+        {
+            addressAbs = address;
+
+            ushort lo = read((ushort)(addressAbs + 0));
+            ushort hi = read((ushort)(addressAbs + 1));
+
+            return (ushort)((hi << 8) | lo);
+        }
+
+        private void performInterrupt()
+        {
+            pushProgramCounter();
+
+            setFlag(Constants.flags.B, false);
+            setFlag(Constants.flags.U, true);
+            setFlag(Constants.flags.I, true);
+
+            write((ushort)(0x0100 + stackPointer), statusRegister);
+            stackPointer--;
+        }
+
+        public SortedList<ushort, string> disassembled(ushort addressStart, ushort addressEnd)
+        {
+            ushort address = addressStart;
+            
+            byte value = 0x00;
+            byte lo = 0x00;
+            byte hi = 0x00;
+            ushort readAddress = 0x0000;
+            ushort lineAddress = 0x0000;
+            string instruction = "";
+            long count = 0;
+
+            SortedList<ushort, string> lineMap = new SortedList<ushort, string>();
+
+            while (address <= addressEnd)
+            {
+                count++;
+                lineAddress = address;
+                opcode = bus.cpuRead(address, true);
+                address++;
+                
+                Constants.method addressMode = lookup[opcode].addressMode;
+
+                instruction = String.Concat("$", lineAddress.ToString("X4"), ": ", lookup[opcode].name);
+
+                if (addressMode == IMP)
+                {
+                    instruction = String.Concat(instruction, " {IMP}");
+                }
+
+                if (addressMode == IMM)
+                {
+                    value = bus.cpuRead(address, true);
+                    address++;
+
+                    instruction = String.Concat(instruction, " #$", value.ToString("X2"), " {IMM}");
+                }
+
+                if (addressMode == ZP0)
+                {
+                    lo = bus.cpuRead(address, true);                   
+                    address++;
+
+                    instruction = String.Concat(instruction, " $", lo.ToString("X2"), " {ZP0}");
+                }
+
+                if (addressMode == ZPX)
+                {
+                    lo = bus.cpuRead(address, true);
+                    address++;
+
+                    instruction = String.Concat(instruction, " $", lo.ToString("X2"), " {ZPX}");
+                }
+
+                if (addressMode == ZPY)
+                {
+                    lo = bus.cpuRead(address, true);
+                    address++;
+
+                    instruction = String.Concat(instruction, " $", lo.ToString("X2"), " {ZPY}");
+                }
+
+                if (addressMode == IZX)
+                {
+                    lo = bus.cpuRead(address, true);
+                    address++;
+
+                    instruction = String.Concat(instruction, " ($", lo.ToString("X2"), "), X {IZX}");
+                }
+
+
+                if (addressMode == IZY)
+                {
+                    lo = bus.cpuRead(address, true);
+                    address++;
+
+                    instruction = String.Concat(instruction, " ($", lo.ToString("X2"), "), Y {IZY}");
+                }
+
+
+                if (addressMode == ABS)
+                {
+                    lo = bus.cpuRead(address, true);
+                    address++;
+                    hi = bus.cpuRead(address, true);
+                    address++;
+
+                    readAddress = (ushort)((hi << 8) | lo);
+
+                    instruction = String.Concat(instruction, " $", readAddress.ToString("X4"), " {ABS}");
+                }
+
+
+                if (addressMode == ABX)
+                {
+                    lo = bus.cpuRead(address, true);
+                    address++;
+                    hi = bus.cpuRead(address, true);
+                    address++;
+
+                    readAddress = (ushort)((hi << 8) | lo);
+
+                    instruction = String.Concat(instruction, " $", readAddress.ToString("X4"), " X {ABX}");
+                }
+
+
+                if (addressMode == ABY)
+                {
+                    lo = bus.cpuRead(address, true);
+                    address++;
+                    hi = bus.cpuRead(address, true);
+                    address++;
+
+                    readAddress = (ushort)((hi << 8) | lo);
+
+                    instruction = String.Concat(instruction, " $", readAddress.ToString("X4"), " Y {ABY}");
+                }
+
+
+                if (addressMode == IND)
+                {
+                    lo = bus.cpuRead(address, true);
+                    address++;
+                    hi = bus.cpuRead(address, true);
+                    address++;
+
+                    readAddress = (ushort)((hi << 8) | lo);
+
+                    instruction = String.Concat(instruction, " ($", readAddress.ToString("X4"), ") {IND}");
+                }
+
+
+                if (addressMode == REL)
+                {
+                    value = bus.cpuRead(address, true);
+                    address++;
+
+                    instruction = String.Concat(instruction, " $", value.ToString("X2"), "[$", ((ushort)(address + value)).ToString("X4"), "] {REL}");
+                }
+
+                if (address == 0)
+                {
+                    break;
+                }
+
+                if (opcode != 0x00)
+                {
+                    Debug.WriteLine(String.Concat(instruction));
+                }
+
+                try
+                {
+                    lineMap.Add(lineAddress, instruction);
+                }
+                catch
+                {
+                    Debug.WriteLine(String.Concat("'Overflow, ", count.ToString()));
+                }
+            }
+
+            return lineMap;
         }
     }
 }

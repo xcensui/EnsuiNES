@@ -9,7 +9,7 @@ namespace EnsuiNES.Console
         public delegate byte method();
 
         public const ushort memoryStart = 0x0000;
-        public const ushort memoryEnd = 0xFFFF;
+        public const ushort memoryEnd = 0x1FFF;
 
         public enum flags
         {

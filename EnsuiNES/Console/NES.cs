@@ -7,29 +7,40 @@ namespace EnsuiNES.Console
     class NES
     {
         public _6502 cpu;
+        public PPU ppu;
+        public Cartridge cartridge;
         public RAM memory;
+        public SortedList<ushort, string> disassembly;
 
         public NES()
         {
             cpu = new _6502();
+            ppu = new PPU();
             memory = new RAM();
 
-            cpu.Connect(this);
             memory.reset();
+            memory.setResetVector(0x00, 0x80);
+            memory.loadTestData();
+
+            cpu.Connect(this);
+
+            disassembly = cpu.disassembled(0x0000, 0xFFFF);
         }
 
-        public void write(ushort address, byte data)
+        public void cpuWrite(ushort address, byte data)
         {
             if (address >= Constants.memoryStart && address <= Constants.memoryEnd)
-                memory.write(address, data);
+                memory.write((byte)(address & 0x07FF), data);
         }
 
-        public byte read(ushort address, bool readOnly = false)
+        public byte cpuRead(ushort address, bool readOnly = false)
         {
-            if (address >= Constants.memoryStart && address <= Constants.memoryEnd) 
-                return memory.read(address, readOnly);
+            byte data = 0x00;
 
-            return 0x00;
+            if (address >= Constants.memoryStart && address <= Constants.memoryEnd) 
+                data = memory.read((byte)(address & 0x07FF), readOnly);
+
+            return data;
         }
     }
 }
