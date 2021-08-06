@@ -9,8 +9,8 @@ namespace EnsuiNES.Console
     {
         private byte[] mem;
 
-        public RAM() {
-            mem = new byte[2048];
+        public RAM(uint memorySize) {
+            mem = new byte[memorySize];
         }
 
         public void reset()

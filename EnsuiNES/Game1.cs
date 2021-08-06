@@ -4,6 +4,7 @@ using Microsoft.Xna.Framework.Input;
 using EnsuiNES.Console;
 using System;
 using System.Diagnostics;
+using System.Threading;
 
 namespace EnsuiNES
 {
@@ -13,21 +14,56 @@ namespace EnsuiNES
         private GraphicsDeviceManager _graphics;
         private SpriteBatch _spriteBatch;
         private SpriteFont consoleFont;
+        private SpriteFont consoleFontSmall;
 
         private RenderTarget2D debugger;
+        private RenderTarget2D screen;
+        private RenderTarget2D patternTable1;
+        private RenderTarget2D patternTable2;
+
+        private Texture2D screendata;
+        private Texture2D patternTableData1;
+        private Texture2D patternTableData2;
+
+        private Thread emulationThread;
+
+        private Console.Cartridge cartridge;
+
+        private bool emulationRunning;
+        private double residualTime;
+        private double lastElapsedTime;
+
+        private double emulationElapsedTime = 0.0f;
+
+        private Stopwatch timer = new Stopwatch();
+
+        private int framesComplete = 0;
+
+        private ushort ramBank;
+
+        private byte selectedPalette = 0x00;
 
         public Game1()
         {
+            emulationRunning = false;
+            residualTime = 0.0f;
+
+            ramBank = 0x0002;
+
             emulator = new NES();
+            cartridge = new Cartridge(@"D:\nestest.nes");
+            emulator.insertCartridge(cartridge);
+
             _graphics = new GraphicsDeviceManager(this);
             Content.RootDirectory = "Content";
             IsMouseVisible = true;
 
-            _graphics.PreferredBackBufferWidth = 1360;
-            _graphics.PreferredBackBufferHeight = 960;
+            _graphics.PreferredBackBufferWidth = 1200;
+            _graphics.PreferredBackBufferHeight = 1080;
             _graphics.ApplyChanges();
 
-
+            consoleFont = Content.Load<SpriteFont>("ConsoleFont");
+            consoleFontSmall = Content.Load<SpriteFont>("ConsoleFontSmall");
         }
 
         protected override void Initialize()
@@ -41,49 +77,144 @@ namespace EnsuiNES
         {
             _spriteBatch = new SpriteBatch(GraphicsDevice);
 
+            screendata = new Texture2D(GraphicsDevice, 256, 240);
+            patternTableData1 = new Texture2D(GraphicsDevice, Constants.patternTableSize, Constants.patternTableSize);
+            patternTableData2 = new Texture2D(GraphicsDevice, Constants.patternTableSize, Constants.patternTableSize);
+
+            emulationThread = new Thread(threadWork);
+            emulationThread.IsBackground = true;
+
             // TODO: use this.Content to load your game content here
         }
 
         protected override void Update(GameTime gameTime)
         {
-            consoleFont = Content.Load<SpriteFont>("ConsoleFont");
-
             Helper.Keyboard.GetState();
 
             if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
                 Exit();
 
-            if (Helper.Keyboard.IsPressed(Keys.Space, true))
+            if (emulationRunning)
             {
-                Debug.WriteLine("Clock");
-
-                do
-                {
-                    emulator.cpu.clock();
-                }
-                while (!emulator.cpu.complete());
                 
+            }
+            else
+            {
+                if (Helper.Keyboard.IsPressed(Keys.C, true))
+                {
+                    Debug.WriteLine("Step");
+
+                    do
+                    {
+                        emulator.clock();
+                    }
+                    while (!emulator.cpu.complete());
+
+                    do
+                    {
+                        emulator.clock();
+                    }
+                    while (!emulator.cpu.complete());
+                }
+
+                if (Helper.Keyboard.IsPressed(Keys.F, true))
+                {
+                    Debug.WriteLine("Frame");
+
+                    do
+                    {
+                        emulator.clock();
+                    }
+                    while (!emulator.ppu.frameComplete);
+
+                    do
+                    {
+                        emulator.clock();
+                    }
+                    while (!emulator.cpu.complete());
+
+                    emulator.ppu.frameComplete = false;
+                }
+
+                if (Helper.Keyboard.IsPressed(Keys.I, true))
+                {
+                    Debug.WriteLine("Interrupt");
+                    emulator.cpu.IRQ();
+                }
+
+                if (Helper.Keyboard.IsPressed(Keys.N, true))
+                {
+                    Debug.WriteLine("NMI");
+                    emulator.cpu.NMI();
+                }
+
+                if (Helper.Keyboard.IsPressed(Keys.S, true))
+                {
+                    Debug.WriteLine("Switch Bank");
+
+                    ramBank += 0x0100;
+                }
+
+                if (Helper.Keyboard.IsPressed(Keys.P, true))
+                {
+                    Debug.WriteLine("Switch Palette");
+
+                    ++selectedPalette;
+                    selectedPalette &= 0x07;
+                }
+
             }
 
             if (Helper.Keyboard.IsPressed(Keys.R, true))
             {
                 Debug.WriteLine("Reset");
-                emulator.cpu.reset();
+                emulator.reset();
             }
 
-            if (Helper.Keyboard.IsPressed(Keys.I, true))
+            if (Helper.Keyboard.IsPressed(Keys.Space, true))
             {
-                Debug.WriteLine("Interrupt");
-                emulator.cpu.IRQ();
-            }
+                if (!emulationRunning)
+                {
+                    emulationElapsedTime = 0.0f;
+                    residualTime = 0.0f;
+                    timer.Start();
 
-            if (Helper.Keyboard.IsPressed(Keys.N, true))
-            {
-                Debug.WriteLine("NMI");
-                emulator.cpu.NMI();
-            }            
+                    if (!emulationThread.IsAlive)
+                    {
+                        emulationThread = new Thread(threadWork);
+                        emulationThread.IsBackground = true;
+                    }
+
+                    emulationThread.Start();
+                }
+                else
+                {
+                    timer.Stop();
+                }
+
+                emulationRunning = !emulationRunning;
+            }
 
             // TODO: Add your update logic here
+
+            Color[] screenBuffer = emulator.getScreenData();
+            Color[] paletteBuffer1 = emulator.getPatternData(1, selectedPalette);
+            Color[] paletteBuffer2 = emulator.getPatternData(2, selectedPalette);
+
+            if (screenBuffer != null)
+            {
+                screendata.SetData(screenBuffer);
+            }
+
+            if (paletteBuffer1 != null)
+            {
+                patternTableData1.SetData(paletteBuffer1);
+            }
+
+            if (paletteBuffer2 != null)
+            {
+                patternTableData2.SetData(paletteBuffer2);
+            }
 
 
             base.Update(gameTime);
@@ -92,23 +223,15 @@ namespace EnsuiNES
         protected override void Draw(GameTime gameTime)
         {
             debugger = new RenderTarget2D(_graphics.GraphicsDevice, (_graphics.PreferredBackBufferWidth - 20), (_graphics.PreferredBackBufferHeight - 20));
+            screen = new RenderTarget2D(_graphics.GraphicsDevice, Constants.nesScreenWidth * 3, Constants.nesScreenHeight * 3);
+            patternTable1 = new RenderTarget2D(_graphics.GraphicsDevice, Constants.patternTableSize * 2, Constants.patternTableSize * 2);
+            patternTable2 = new RenderTarget2D(_graphics.GraphicsDevice, Constants.patternTableSize * 2, Constants.patternTableSize * 2);
 
-            GraphicsDevice.SetRenderTarget(debugger);
+            DrawDebugger();
+            DrawScreen();
+            DrawPatternTables();
 
-            GraphicsDevice.Clear(Color.Blue);
-
-            _spriteBatch.Begin();
-
-            DrawRam(10, 10, 0x0000, 16, 16);
-            DrawRam(10, 360, 0x8000, 16, 16);
-
-            DrawCpu(780, 10);
-
-            DrawCode(780, 200, 32);
-
-            _spriteBatch.DrawString(consoleFont, "SPACE: Clock CPU    R: Reset Console    I: Interrupt    N: NMI", new Vector2(10, (debugger.Height - 20)), Color.White);
-
-            _spriteBatch.End();
+            //Rectangle bounds = new Rectangle(10, 10, Constants.nesScreenWidth, Constants.nesScreenWidth);
 
             GraphicsDevice.SetRenderTarget(null);
 
@@ -117,12 +240,64 @@ namespace EnsuiNES
             _spriteBatch.Begin();
 
             _spriteBatch.Draw(debugger, new Vector2(10, 10), Color.White);
-
+            _spriteBatch.Draw(screen, new Vector2(20, 20), Color.White);
+            _spriteBatch.Draw(patternTable1, new Vector2(630, 810), Color.White);
+            _spriteBatch.Draw(patternTable2, new Vector2(906, 810), Color.White);
             _spriteBatch.End();
 
             // TODO: Add your drawing code here
 
             base.Draw(gameTime);
+
+            debugger.Dispose();
+            screen.Dispose();
+            patternTable1.Dispose();
+            patternTable2.Dispose();
+        }
+
+        protected void DrawPatternTables()
+        {
+            Rectangle bounds = new Rectangle(0, 0, Constants.patternTableSize * 2, Constants.patternTableSize * 2);
+
+            GraphicsDevice.SetRenderTarget(patternTable1);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(patternTableData1, bounds, Color.White);
+            _spriteBatch.End();
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(patternTableData2, bounds, Color.White);
+            _spriteBatch.End();
+        }
+
+        protected void DrawDebugger()
+        {
+            GraphicsDevice.SetRenderTarget(debugger);
+
+            GraphicsDevice.Clear(Color.Blue);
+
+            _spriteBatch.Begin();
+
+            DrawRam(10, 750, ramBank, 16, 16);
+
+            DrawCpu(800, 10);
+
+            DrawCode(800, 140, 32);
+
+            //_spriteBatch.DrawString(consoleFontSmall, "SPACE: Toggle Running  C: Clock  F: Frame  R: Reset Console  I: Interrupt  N: NMI  S: Switch RAM Page", new Vector2(10, (debugger.Height - 20)), Color.White);
+
+            _spriteBatch.End();
+        }
+
+        protected void DrawScreen()
+        {
+            Rectangle bounds = new Rectangle(0, 0, Constants.nesScreenWidth * 3, Constants.nesScreenHeight * 3);
+
+            GraphicsDevice.SetRenderTarget(screen);
+
+            _spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            _spriteBatch.Draw(screendata, bounds, Color.White);
+            _spriteBatch.End();
         }
 
         protected void DrawRam(int xPosition, int yPosition, ushort address, int numberOfRows, int numberOfColumns)
@@ -141,9 +316,9 @@ namespace EnsuiNES
                     address++;
                 }
 
-                _spriteBatch.DrawString(consoleFont, line, new Vector2(numberRamX, numberRamY), Color.White);
+                _spriteBatch.DrawString(consoleFontSmall, line, new Vector2(numberRamX, numberRamY), Color.White);
 
-                numberRamY += 20;
+                numberRamY += 15;
             }
         }
 
@@ -159,8 +334,6 @@ namespace EnsuiNES
             _spriteBatch.DrawString(consoleFont, "I", new Vector2(xPosition + 250, yPosition), (emulator.cpu.getFlag(Constants.flags.I) == 0) ? Color.Red : Color.LightGreen);
             _spriteBatch.DrawString(consoleFont, "Z", new Vector2(xPosition + 280, yPosition), (emulator.cpu.getFlag(Constants.flags.Z) == 0) ? Color.Red : Color.LightGreen);
             _spriteBatch.DrawString(consoleFont, "C", new Vector2(xPosition + 310, yPosition), (emulator.cpu.getFlag(Constants.flags.C) == 0) ? Color.Red : Color.LightGreen);
-
-            _spriteBatch.DrawString(consoleFont, string.Concat("[", Convert.ToString(emulator.cpu.statusRegister, 2).PadLeft(8, '0') , "]"), new Vector2(xPosition + 340, yPosition), Color.White);
 
             _spriteBatch.DrawString(consoleFont, string.Concat("PC: $", emulator.cpu.pCounter.ToString("X4")), new Vector2(xPosition, (yPosition + 20)), Color.White);
             _spriteBatch.DrawString(consoleFont, string.Concat("A: $", emulator.cpu.acc.ToString("X2"), " [", emulator.cpu.acc, "]"), new Vector2(xPosition, (yPosition + 40)), Color.White);
@@ -209,6 +382,33 @@ namespace EnsuiNES
 
                         _spriteBatch.DrawString(consoleFont, emulator.disassembly.Values[indexOfKey], new Vector2(xPosition, numberLineY), Color.White);
                     }
+                }
+            }
+        }
+
+        protected void threadWork()
+        {
+            while (emulationRunning)
+            {
+                emulationElapsedTime = timer.ElapsedMilliseconds - lastElapsedTime;
+                lastElapsedTime = timer.ElapsedMilliseconds;
+
+                if (residualTime > 0.0f)
+                {
+                    residualTime -= emulationElapsedTime;
+                }
+                else
+                {
+                    residualTime += ((1.0f / 60.0f) * 1000) - emulationElapsedTime;
+
+                    do
+                    {
+                        emulator.clock();
+                    }
+                    while (!emulator.ppu.frameComplete);
+
+                    emulator.ppu.frameComplete = false;
+                    framesComplete++;
                 }
             }
         }

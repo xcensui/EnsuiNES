@@ -24,6 +24,8 @@ namespace EnsuiNES.Console
         private ushort addressAbs;
         private ushort addressRel;
 
+        private bool inCycle = false;
+
         private bool boundaryBug;
 
         private List<byte> nopCycles;
@@ -43,7 +45,14 @@ namespace EnsuiNES.Console
 
         public ushort pCounter
         {
-            get => programCounter;
+            get
+            {
+                while (inCycle)
+                {
+                }
+
+                return programCounter;
+            }
         }
 
         public byte acc
@@ -347,7 +356,6 @@ namespace EnsuiNES.Console
         public void Connect(NES console)
         {
             bus = console;
-            reset();
         }
 
         public bool complete()
@@ -357,11 +365,13 @@ namespace EnsuiNES.Console
 
         public void reset()
         {
+            inCycle = false;
             accumulator = 0x00;
             xRegister = 0x00;
             yRegister = 0x00;
             stackPointer = 0xFD;
             programCounter = getSetProgramCounter(0xFFFC);
+
             statusRegister = (byte)(0x00 | Constants.flags.U);
 
             cycles = 8;
@@ -404,6 +414,7 @@ namespace EnsuiNES.Console
         {
             if (cycles == 0)
             {
+                inCycle = true;
                 opcode = read(programCounter);
                 programCounter++;
                 cycles = lookup[opcode].cycles;
@@ -411,7 +422,9 @@ namespace EnsuiNES.Console
                 byte additionalOperationCycle = lookup[opcode].operation();
 
                 cycles += (byte)(additionalAddressCycle & additionalOperationCycle);
-             }
+            }
+
+            inCycle = false;
 
             cycles--;
         }
@@ -464,7 +477,8 @@ namespace EnsuiNES.Console
         //Addressing Modes
         private byte IMM()
         {
-            addressAbs = programCounter++;
+            addressAbs = programCounter;
+            programCounter++;
 
             return 0;
         }
@@ -576,8 +590,8 @@ namespace EnsuiNES.Console
             byte offset = read(programCounter);
             programCounter++;
 
-            ushort lo = (ushort)(read((byte)(offset + xRegister)) & 0x00FF);
-            ushort hi = (ushort)(read((byte)(offset + xRegister + 1)) & 0x00FF);
+            ushort lo = (ushort)(read((ushort)((offset + xRegister) & 0x00FF)));
+            ushort hi = (ushort)(read((ushort)((offset + xRegister + 1) & 0x00FF)));
 
             addressAbs = (ushort)((hi << 8) | lo);
 
@@ -589,10 +603,11 @@ namespace EnsuiNES.Console
             byte offset = read(programCounter);
             programCounter++;
 
-            ushort lo = read((byte)(offset & 0x00FF));
-            ushort hi = read((byte)((offset + 1) & 0x00FF));
+            ushort lo = read((ushort)(offset & 0x00FF));
+            ushort hi = read((ushort)((offset + 1) & 0x00FF));
 
-            addressAbs = (ushort)(((hi << 8) | lo) + yRegister);
+            addressAbs = (ushort)((hi << 8) | lo);
+            addressAbs += yRegister;
 
             if ((addressAbs & 0xFF00) != (hi << 8))
             {
@@ -793,7 +808,7 @@ namespace EnsuiNES.Console
             accumulator = read((ushort)(0x0100 + stackPointer));
 
             setFlag(Constants.flags.Z, accumulator == 0x00);
-            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.N, (accumulator & 0x80) > 0);
             
             return 0;
         }
@@ -804,7 +819,7 @@ namespace EnsuiNES.Console
             accumulator = read((ushort)(0x0100 + xRegister));
 
             setFlag(Constants.flags.Z, xRegister== 0x00);
-            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (xRegister & 0x80) > 0);
 
             return 0;
         }
@@ -815,7 +830,7 @@ namespace EnsuiNES.Console
             accumulator = read((ushort)(0x0100 + yRegister));
 
             setFlag(Constants.flags.Z, yRegister == 0x00);
-            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (yRegister & 0x80) > 0);
 
             return 0;
         }
@@ -823,14 +838,14 @@ namespace EnsuiNES.Console
         private byte ADC() {
             fetchData();
 
-            ushort result = (ushort)(accumulator + fetchedData + getFlag(Constants.flags.C));
+            ushort result = (ushort)((ushort)accumulator + fetchedData + (ushort)getFlag(Constants.flags.C));
 
             ushort overflow = (ushort)(~(ushort)(accumulator ^ (ushort)fetchedData) & ((ushort)accumulator ^ (ushort)result) & 0x0080);
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x80) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
             setFlag(Constants.flags.C, (result > 255));
-            setFlag(Constants.flags.V, overflow == 1);
+            setFlag(Constants.flags.V, overflow > 0);
 
             accumulator = (byte)(result & 0x00FF);
 
@@ -846,10 +861,10 @@ namespace EnsuiNES.Console
 
             ushort overflow = (ushort)((ushort)(result ^ accumulator) & (result ^ value) & 0x0080);
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
             setFlag(Constants.flags.C, (result > 255));
-            setFlag(Constants.flags.V, overflow == 1);
+            setFlag(Constants.flags.V, overflow > 0);
 
             accumulator = (byte)(result & 0x00FF);
 
@@ -861,7 +876,7 @@ namespace EnsuiNES.Console
             fetchData();
             accumulator = (byte)(accumulator | fetchedData);
 
-            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.N, (accumulator & 0x80) > 0);
             setFlag(Constants.flags.Z, accumulator == 0);
 
             return 1;
@@ -884,7 +899,7 @@ namespace EnsuiNES.Console
 
             write(addressAbs, result);
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
 
             return 0;
@@ -897,7 +912,7 @@ namespace EnsuiNES.Console
 
             write(addressAbs, result);
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
 
             return 0;
@@ -907,7 +922,7 @@ namespace EnsuiNES.Console
         {
             yRegister++;
 
-            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (yRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, (yRegister & 0xFF) == 0);
 
             return 0;
@@ -917,7 +932,7 @@ namespace EnsuiNES.Console
         {
             xRegister++;
 
-            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (xRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, (xRegister & 0xFF) == 0);
 
             return 0;
@@ -927,7 +942,7 @@ namespace EnsuiNES.Console
         {
             yRegister--;
 
-            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (yRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, (yRegister & 0xFF) == 0);
 
             return 0;
@@ -937,7 +952,7 @@ namespace EnsuiNES.Console
         {
             xRegister--;
 
-            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (xRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, (xRegister & 0xFF) == 0);
 
             return 0;
@@ -948,8 +963,8 @@ namespace EnsuiNES.Console
             fetchData();
             ushort result = (ushort)(fetchedData >> 1);
 
-            setFlag(Constants.flags.C, (fetchedData & 0x0001) == 1);
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.C, (fetchedData & 0x0001) > 0);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
 
             if (lookup[opcode].addressMode == IMP)
@@ -968,7 +983,7 @@ namespace EnsuiNES.Console
 
             ushort result = (ushort)((fetchedData << 1) | (byte)(Constants.flags.C));
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
             setFlag(Constants.flags.C, (result & 0xFF00) > 0);
 
@@ -988,7 +1003,7 @@ namespace EnsuiNES.Console
 
             accumulator = (byte)(accumulator ^ fetchedData);
 
-            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.N, (accumulator & 0x80) > 0);
             setFlag(Constants.flags.Z, accumulator == 0);
 
             return 1;
@@ -1000,7 +1015,7 @@ namespace EnsuiNES.Console
 
             ushort result = (ushort)((byte)((byte)(Constants.flags.C) << 7) | (fetchedData >> 1));
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
             setFlag(Constants.flags.C, (result & 0xFF00) > 0);
 
@@ -1020,7 +1035,7 @@ namespace EnsuiNES.Console
 
             ushort result = (ushort)(fetchedData << 1);
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
             setFlag(Constants.flags.C, (result & 0xFF00) > 0);
 
@@ -1040,9 +1055,9 @@ namespace EnsuiNES.Console
 
             byte result = (byte)(accumulator & fetchedData);
 
-            setFlag(Constants.flags.N, (fetchedData & (1 << 7)) == 1);
+            setFlag(Constants.flags.N, (fetchedData & (1 << 7)) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
-            setFlag(Constants.flags.V, (fetchedData & (1 << 6)) == 1);
+            setFlag(Constants.flags.V, (fetchedData & (1 << 6)) > 0);
 
             return 0;
         }
@@ -1125,13 +1140,13 @@ namespace EnsuiNES.Console
 
             return 0;
         }
-
+        
         private byte LDA()
         {
             fetchData();
             accumulator = fetchedData;
 
-            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.N, (accumulator & 0x80) > 0);
             setFlag(Constants.flags.Z, accumulator == 0);
 
             return 1;
@@ -1142,7 +1157,7 @@ namespace EnsuiNES.Console
             fetchData();
             xRegister = fetchedData;
 
-            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (xRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, xRegister == 0);
 
             return 1;
@@ -1153,7 +1168,7 @@ namespace EnsuiNES.Console
             fetchData();
             yRegister = fetchedData;
 
-            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (yRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, yRegister == 0);
 
             return 1;
@@ -1163,7 +1178,7 @@ namespace EnsuiNES.Console
         {
             xRegister = accumulator;
 
-            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (xRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, xRegister == 0);
 
             return 0;
@@ -1173,7 +1188,7 @@ namespace EnsuiNES.Console
         {
             yRegister = accumulator;
 
-            setFlag(Constants.flags.N, (yRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (yRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, yRegister == 0);
 
             return 0;
@@ -1183,7 +1198,7 @@ namespace EnsuiNES.Console
         {
             xRegister = stackPointer;
 
-            setFlag(Constants.flags.N, (xRegister & 0x80) == 1);
+            setFlag(Constants.flags.N, (xRegister & 0x80) > 0);
             setFlag(Constants.flags.Z, xRegister == 0);
 
             return 0;
@@ -1193,7 +1208,7 @@ namespace EnsuiNES.Console
         {
             accumulator = xRegister;
 
-            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.N, (accumulator & 0x80) > 0);
             setFlag(Constants.flags.Z, accumulator == 0);
 
             return 0;
@@ -1210,7 +1225,7 @@ namespace EnsuiNES.Console
         {
             accumulator = yRegister;
 
-            setFlag(Constants.flags.N, (accumulator & 0x80) == 1);
+            setFlag(Constants.flags.N, (accumulator & 0x80) > 0);
             setFlag(Constants.flags.Z, accumulator == 0);
 
             return 0;
@@ -1220,9 +1235,9 @@ namespace EnsuiNES.Console
         {
             fetchData();
 
-            ushort result = (ushort)(accumulator - fetchedData);
+            ushort result = (ushort)((ushort)(accumulator) - fetchedData);
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
             setFlag(Constants.flags.C, (accumulator >= fetchedData));
 
@@ -1235,7 +1250,7 @@ namespace EnsuiNES.Console
 
             ushort result = (ushort)(xRegister - fetchedData);
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
             setFlag(Constants.flags.C, (xRegister >= fetchedData));
 
@@ -1248,7 +1263,7 @@ namespace EnsuiNES.Console
 
             ushort result = (ushort)(yRegister - fetchedData);
 
-            setFlag(Constants.flags.N, (result & 0x0080) == 1);
+            setFlag(Constants.flags.N, (result & 0x0080) > 0);
             setFlag(Constants.flags.Z, (result & 0x00FF) == 0);
             setFlag(Constants.flags.C, (yRegister >= fetchedData));
 
@@ -1456,26 +1471,23 @@ namespace EnsuiNES.Console
                     value = bus.cpuRead(address, true);
                     address++;
 
-                    instruction = String.Concat(instruction, " $", value.ToString("X2"), "[$", ((ushort)(address + value)).ToString("X4"), "] {REL}");
+                    instruction = String.Concat(instruction, " $", value.ToString("X2"), " [$", ((ushort)(address + (sbyte)value)).ToString("X4"), "] {REL}");
                 }
 
-                if (address == 0)
+                if (address == 0 || address == addressEnd)
                 {
                     break;
-                }
-
-                if (opcode != 0x00)
-                {
-                    Debug.WriteLine(String.Concat(instruction));
                 }
 
                 try
                 {
                     lineMap.Add(lineAddress, instruction);
                 }
-                catch
+                catch (Exception e)
                 {
+                    Debug.WriteLine(String.Concat("LA: ", lineAddress.ToString("X4"), " - Ins: ", instruction));
                     Debug.WriteLine(String.Concat("'Overflow, ", count.ToString()));
+
                 }
             }
 
