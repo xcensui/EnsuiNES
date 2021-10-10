@@ -89,7 +89,7 @@ namespace EnsuiNES.Console
         {
             byte colourLocation = ppuRead((byte)(0x3F00 + (palette << 2) + pixel));
 
-            return screenPalette[colourLocation];
+            return screenPalette[colourLocation & 0x3F];
         }
 
         public Color[] getPatternTable(int patternTable, byte palette)
@@ -102,8 +102,8 @@ namespace EnsuiNES.Console
 
                     for (ushort row = 0; row < 8; row++)
                     {
-                        byte tileLSB = ppuRead((ushort)(patternTable * 0x1000 + tileOffset + row));
-                        byte tileMSB = ppuRead((ushort)(patternTable * 0x1000 + tileOffset + row + 8));
+                        byte tileLSB = ppuRead((ushort)((patternTable - 1) * 0x1000 + tileOffset + row));
+                        byte tileMSB = ppuRead((ushort)((patternTable - 1) * 0x1000 + tileOffset + row + 0x0008));
 
                         for (ushort col = 0; col < 8; col++)
                         {
@@ -203,7 +203,7 @@ namespace EnsuiNES.Console
                     data = (byte)((status & 0xE0) | (dataBuffer & 0x1F));
 
                     setStatusValue(Constants.ppuStatus.spriteVBlank, false);
-                    addressLatch = 0;
+                    addressLatch = 0;       
                     break;
                 case (ushort)Constants.ppuAddress.OAMAddress:
                     break;
@@ -221,6 +221,8 @@ namespace EnsuiNES.Console
                     {
                         data = dataBuffer;
                     }
+
+                    ppuAddress++;
                     break;
             }
 
@@ -271,17 +273,20 @@ namespace EnsuiNES.Console
                 case (ushort)Constants.ppuAddress.PPUAddress:
                     if (addressLatch == 0)
                     {
-                        ppuAddress = (ushort)((ppuAddress & 0x3F) | (ppuAddress & 0x00FF));
+                        ppuAddress = (ushort)((ppuAddress & 0x00FF) | (data << 8));
+                        //ppuAddress = (ushort)((ppuAddress & 0x3F) | (ppuAddress & 0x00FF));
                         addressLatch = 1;
                     }
                     else
                     {
                         ppuAddress = (ushort)((ppuAddress & 0xFF00) | data);
+                        //ppuAddress = (ushort)((ppuAddress & 0xFF00) | data);
                         addressLatch = 0;
                     }
                     break;
                 case (ushort)Constants.ppuAddress.PPUData:
                     ppuWrite(ppuAddress, data);
+                    ppuAddress++;
                     break;
                 default:
                     Debug.WriteLine("Something has gone wrong");

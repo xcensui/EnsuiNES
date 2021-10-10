@@ -344,7 +344,15 @@ namespace EnsuiNES
 
         protected void DrawCode(int xPosition, int yPosition, int numberOfLines)
         {
-            string currentString = emulator.disassembly[emulator.cpu.pCounter];
+            string currentString = "";
+            try
+            {
+                currentString = emulator.disassembly[emulator.cpu.pCounter];
+            }
+            catch (Exception e)
+            {
+            }
+
             int indexOfKey = emulator.disassembly.IndexOfKey(emulator.cpu.pCounter);
             int numberLineY = (numberOfLines >> 1) * 20 + yPosition;
 

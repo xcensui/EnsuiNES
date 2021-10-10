@@ -370,7 +370,8 @@ namespace EnsuiNES.Console
             xRegister = 0x00;
             yRegister = 0x00;
             stackPointer = 0xFD;
-            programCounter = getSetProgramCounter(0xFFFC);
+            //programCounter = getSetProgramCounter(0xFFFC);
+            programCounter = 0xC000;
 
             statusRegister = (byte)(0x00 | Constants.flags.U);
 
@@ -1309,7 +1310,7 @@ namespace EnsuiNES.Console
         private byte fetchStack()
         {
             stackPointer++;
-            return read((byte)(0x0100 & stackPointer));
+            return read((byte)(0x0100 + stackPointer));
         }
 
         private ushort getSetProgramCounter(ushort address)
