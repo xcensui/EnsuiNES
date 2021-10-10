@@ -417,6 +417,7 @@ namespace EnsuiNES.Console
             {
                 inCycle = true;
                 opcode = read(programCounter);
+                setFlag(Constants.flags.U, true);
                 programCounter++;
                 cycles = lookup[opcode].cycles;
                 byte additionalAddressCycle = lookup[opcode].addressMode();
@@ -588,11 +589,11 @@ namespace EnsuiNES.Console
 
         private byte IZX()
         {
-            byte offset = read(programCounter);
+            ushort offset = read(programCounter);
             programCounter++;
 
-            ushort lo = (ushort)(read((ushort)((offset + xRegister) & 0x00FF)));
-            ushort hi = (ushort)(read((ushort)((offset + xRegister + 1) & 0x00FF)));
+            ushort lo = (ushort)(read((ushort)(offset + (ushort)xRegister)) & 0x00FF);
+            ushort hi = (ushort)(read((ushort)(offset + (ushort)xRegister + 1)) & 0x00FF);
 
             addressAbs = (ushort)((hi << 8) | lo);
 
@@ -601,7 +602,7 @@ namespace EnsuiNES.Console
 
         private byte IZY()
         {
-            byte offset = read(programCounter);
+            ushort offset = read(programCounter);
             programCounter++;
 
             ushort lo = read((ushort)(offset & 0x00FF));
